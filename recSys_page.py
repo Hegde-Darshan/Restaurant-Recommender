@@ -9,24 +9,38 @@ restaurants = pd.read_csv(r'models/restaurants.csv', usecols=['Restaurant Name',
 with open(r'models/restaurant_sim.pkl', 'rb') as f:
     SIMILARITIES = pk.load(f)
 
+#Constant
 ALL_LOCATIONS = pd.Series(restaurants['Location'].unique())
 
+
 #____________Functions___________#
-def get_restaurants(curr_location):
+def get_restaurants(curr_location : str) -> pd.Series:
+    """
+    Returns Restaurant Names filtered on current location
+    
+    curr_location - Current Location selected
+    """
     return restaurants[restaurants['Location'] == curr_location]['Restaurant Name']
 
 
-def get_topN(curr_location):
-    # Candidate ranking
+def get_topN(curr_location : str) -> pd.DataFrame:
+    """
+    Returns Top-N recommedations for the current location based on ratings
+
+    curr_location - Current Location selected
+    """
     candidates = restaurants[restaurants['Location'] == curr_location].sort_values(by='Revised Rating', ascending=False)
     ranked = candidates[['Restaurant Name', 'Cuisine', 'Rating']].head(10)
     return ranked.sample(4).reset_index(drop=True)
 
 
-def get_recommendations(curr_location, restaurant, top_n : int = 8) -> pd.DataFrame:
+def get_recommendations(curr_location : str, restaurant: str, recommend : int = 8) -> pd.DataFrame:
     """
     Returns a frame of recommended restaurants based on the cosine similarity of restaurants in the area
-    1. recommend - number of items to recommend
+
+    curr_location - Current location selected
+    restaurant - restaurant name previously ordered in the location
+    recommend - number of items to recommend
     """
     restaurant_idx  = restaurants[(restaurants['Restaurant Name'] == restaurant) & (restaurants['Location'] == curr_location)].index[0]
     restaurants_in_area = restaurants[(restaurants['Location'] == curr_location)].index
@@ -39,16 +53,14 @@ def get_recommendations(curr_location, restaurant, top_n : int = 8) -> pd.DataFr
     #sort by similarity values
     similarity_in_area = sorted(similarity_in_area, key= lambda x: x[1], reverse=True)
 
-    return restaurants.iloc[[item[0] for item in similarity_in_area[:top_n]]].sample(4).reset_index(drop=True)
+    return restaurants.iloc[[item[0] for item in similarity_in_area[:recommend]]].sample(4).reset_index(drop=True)
 
 
 #___________________page____________________#
 
-font_ = '<p style="font-family:sans-serif; color:Green; font-size: 42px;">New image</p>'
-
-note_container = st.container()
-header_container = st.container()
-title_div, select_div = st.columns([5,1])
+note_container = st.container() #container for important notes at the top
+header_container = st.container() #container for header at the top
+title_div, select_div = st.columns([5,1]) #divison for title and select box in the same line
 
 with header_container:
     title_div.title("Restaurant Recommender")
@@ -57,11 +69,12 @@ with header_container:
                                             key='location_select')
 
     
-
 with note_container:
-        st.toast('Your current location is set to {}'.format(current_location))
+        st.toast('Your current location is set to {}'.format(current_location)) #disappearing message for selected location
+
 
 st.divider()
+
 
 st.subheader(
     'Top rated restaurants near you'
@@ -91,7 +104,9 @@ with top4:
     st.image(r'images/r4.jpg')
     st.caption('{}:star: Ratings'.format(topN.loc[3, 'Rating']), unsafe_allow_html=True)
 
+
 st.divider()
+
 
 st.subheader(
     'Based on your previous orders'
