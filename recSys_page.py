@@ -1,17 +1,17 @@
 import streamlit as st
 import pandas as pd
 import pickle as pk
-
+from scipy import sparse as sparse
 
 #___________Load Objects__________#
 restaurants = pd.read_csv(r'models/restaurants.csv', usecols=['Restaurant Name','Cuisine','Rating','Location','Revised Rating'])
 
-with open(r'models/restaurant_sim.pkl', 'rb') as f:
-    SIMILARITIES = pk.load(f)
+#with open(r'models/restaurant_sim.pkl', 'rb') as f:
+#    SIMILARITIES = pk.load(f)
+SIMILARITIES = sparse.load_npz("models/sparse_sim.npz")
 
 #Constant
 ALL_LOCATIONS = pd.Series(restaurants['Location'].unique())
-
 
 #____________Functions___________#
 def get_restaurants(curr_location : str) -> pd.Series:
@@ -41,12 +41,19 @@ def get_recommendations(curr_location : str, restaurant: str, recommend : int = 
     curr_location - Current location selected
     restaurant - restaurant name previously ordered in the location
     recommend - number of items to recommend
+
+    globals used:
+    restaurants - a dataframe of restaurants and details
+    SIMILARITIES - similarity matrix of restaurants
     """
     restaurant_idx  = restaurants[(restaurants['Restaurant Name'] == restaurant) & (restaurants['Location'] == curr_location)].index[0]
     restaurants_in_area = restaurants[(restaurants['Location'] == curr_location)].index
 
     #list of tuples (idx, similarity value)
-    similarity_for_X = list(enumerate(SIMILARITIES[restaurant_idx]))
+    #similarity_for_X = list(enumerate(SIMILARITIES[restaurant_idx]))
+
+    #list of tuples (idx, similarity value) from csr_matrix -> array
+    similarity_for_X = list(enumerate(SIMILARITIES.getrow(restaurant_idx).toarray()[0]))
 
     #list of only those tuples from the same location
     similarity_in_area = [ x for x in similarity_for_X if x[0] in restaurants_in_area]
