@@ -1,17 +1,32 @@
 import streamlit as st
 import pandas as pd
-import pickle as pk
 from scipy import sparse as sparse
 
 #___________Load Objects__________#
-restaurants = pd.read_csv(r'models/restaurants.csv', usecols=['Restaurant Name','Cuisine','Rating','Location','Revised Rating'])
 
-#with open(r'models/restaurant_sim.pkl', 'rb') as f:
-#    SIMILARITIES = pk.load(f)
-SIMILARITIES = sparse.load_npz("models/sparse_sim.npz")
+@st.cache_resource
+def read_npz():
+    """
+    function to read and cache similarity matrix for the website.
+    """
+    similarities = sparse.load_npz("models/sparse_sim.npz")
+    return similarities
+
+@st.cache_data
+def read_data():
+    """
+    function to cache dataframes. Restaurants & locations.
+    """
+    #restaurant dataframe
+    restaurants = pd.read_csv(r'models/restaurants.csv', usecols=['Restaurant Name','Cuisine','Rating','Location','Revised Rating'])
+
+    #locations only series
+    all_locations = pd.Series(restaurants['Location'].unique())
+    return restaurants, all_locations
 
 #Constant
-ALL_LOCATIONS = pd.Series(restaurants['Location'].unique())
+SIMILARITIES = read_npz()
+RESTAURANTS, ALL_LOCATIONS = read_data()
 
 #____________Functions___________#
 def get_restaurants(curr_location : str) -> pd.Series:
@@ -20,7 +35,7 @@ def get_restaurants(curr_location : str) -> pd.Series:
     
     curr_location - Current Location selected
     """
-    return restaurants[restaurants['Location'] == curr_location]['Restaurant Name']
+    return RESTAURANTS[RESTAURANTS['Location'] == curr_location]['Restaurant Name']
 
 
 def get_topN(curr_location : str) -> pd.DataFrame:
@@ -29,9 +44,10 @@ def get_topN(curr_location : str) -> pd.DataFrame:
 
     curr_location - Current Location selected
     """
-    candidates = restaurants[restaurants['Location'] == curr_location].sort_values(by='Revised Rating', ascending=False)
+    candidates = RESTAURANTS[RESTAURANTS['Location'] == curr_location].sort_values(by='Revised Rating', ascending=False)
     ranked = candidates[['Restaurant Name', 'Cuisine', 'Rating']].head(10)
-    return ranked.sample(4).reset_index(drop=True)
+    n = len(ranked) if len(ranked)<4 else 4
+    return ranked.sample(n).reset_index(drop=True)
 
 
 def get_recommendations(curr_location : str, restaurant: str, recommend : int = 8) -> pd.DataFrame:
@@ -46,8 +62,8 @@ def get_recommendations(curr_location : str, restaurant: str, recommend : int = 
     restaurants - a dataframe of restaurants and details
     SIMILARITIES - similarity matrix of restaurants
     """
-    restaurant_idx  = restaurants[(restaurants['Restaurant Name'] == restaurant) & (restaurants['Location'] == curr_location)].index[0]
-    restaurants_in_area = restaurants[(restaurants['Location'] == curr_location)].index
+    restaurant_idx  = RESTAURANTS[(RESTAURANTS['Restaurant Name'] == restaurant) & (RESTAURANTS['Location'] == curr_location)].index[0]
+    restaurants_in_area = RESTAURANTS[(RESTAURANTS['Location'] == curr_location)].index
 
     #list of tuples (idx, similarity value)
     #similarity_for_X = list(enumerate(SIMILARITIES[restaurant_idx]))
@@ -59,8 +75,7 @@ def get_recommendations(curr_location : str, restaurant: str, recommend : int = 
     similarity_in_area = [ x for x in similarity_for_X if x[0] in restaurants_in_area]
     #sort by similarity values
     similarity_in_area = sorted(similarity_in_area, key= lambda x: x[1], reverse=True)
-
-    return restaurants.iloc[[item[0] for item in similarity_in_area[:recommend]]].sample(4).reset_index(drop=True)
+    return RESTAURANTS.iloc[[item[0] for item in similarity_in_area[:recommend]]].sample(4).reset_index(drop=True)
 
 
 #___________________page____________________#
